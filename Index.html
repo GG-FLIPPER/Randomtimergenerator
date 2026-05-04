@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Timer</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0e0f;
+    --panel: #141618;
+    --border: #2a2d30;
+    --accent: #e8ff47;
+    --accent2: #ff6b35;
+    --text: #d4d8dc;
+    --muted: #555b62;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Barlow Condensed', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--display);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.015) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.015) 40px);
+    pointer-events: none;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 14px 20px 12px;
+    background: var(--panel);
+  }
+
+  .brand {
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    display: inline-block;
+    margin-right: 6px;
+    transition: background 0.3s;
+  }
+  .status-dot.running { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .status-dot.done { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+
+  /* ── DISPLAY BOX ── */
+  .display-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 32px 24px 24px;
+    text-align: center;
+    position: relative;
+  }
+
+  .display-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .time-display {
+    font-family: var(--mono);
+    font-size: clamp(60px, 15vw, 96px);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    color: var(--accent);
+    transition: color 0.3s;
+    text-shadow: 0 0 40px rgba(232,255,71,0.15);
+  }
+  .time-display.warning { color: var(--accent2); text-shadow: 0 0 40px rgba(255,107,53,0.2); }
+  .time-display.done-state { color: var(--accent2); animation: blink 0.5s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── HIDDEN VIEW ── */
+  .hidden-view {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 0;
+  }
+
+  .hidden-emoji { font-size: 72px; line-height: 1; }
+
+  .hidden-msg {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .dot-loader { display: flex; gap: 8px; }
+  .dot-loader span {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: dotBounce 1.2s ease-in-out infinite;
+  }
+  .dot-loader span:nth-child(2) { animation-delay: 0.2s; }
+  .dot-loader span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotBounce {
+    0%,80%,100% { opacity: 0.2; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1.2); }
+  }
+
+  /* ── BOOM OVERLAY ── */
+  .boom-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--accent2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s;
+  }
+  .boom-overlay.show {
+    opacity: 1;
+    pointer-events: all;
+    animation: boomFlash 0.18s ease-out;
+  }
+  @keyframes boomFlash {
+    0% { background: #fff; }
+    100% { background: var(--accent2); }
+  }
+  .boom-icon { font-size: 100px; animation: boomBounce 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+  @keyframes boomBounce {
+    0%  { transform: scale(0.2); opacity: 0; }
+    60% { transform: scale(1.3); opacity: 1; }
+    100%{ transform: scale(1); }
+  }
+  .boom-text {
+    font-family: var(--display);
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: #0d0e0f;
+    margin-top: 10px;
+    text-transform: uppercase;
+  }
+  .boom-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(0,0,0,0.45);
+    letter-spacing: 0.2em;
+    margin-top: 6px;
+  }
+  .boom-close {
+    margin-top: 36px;
+    padding: 14px 44px;
+    background: #0d0e0f;
+    color: var(--accent);
+    border: none;
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .boom-close:hover { background: #1a1c1e; }
+
+  .progress-track {
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    margin-top: 20px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 1s linear, background 0.3s;
+  }
+  .progress-fill.warning { background: var(--accent2); }
+  .progress-track.hidden-mode { visibility: hidden; }
+
+  /* ── TOGGLE ── */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-top: none;
+    gap: 16px;
+  }
+
+  .toggle-info { display: flex; flex-direction: column; gap: 3px; }
+
+  .toggle-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--text);
+  }
+
+  .toggle-desc {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    line-height: 1.5;
+  }
+
+  .switch {
+    position: relative;
+    width: 48px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .slider::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 4px; top: 4px;
+    background: var(--muted);
+    transition: transform 0.2s, background 0.2s;
+  }
+  .switch input:checked + .slider { background: rgba(232,255,71,0.12); border: 1px solid var(--accent); }
+  .switch input:checked + .slider::before { transform: translateX(22px); background: var(--accent); }
+
+  /* ── CONTROLS ── */
+  .controls-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-top: none;
+  }
+
+  .section-title {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-family: var(--mono);
+    padding: 12px 20px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .range-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .range-col { padding: 16px 20px 18px; }
+  .range-col:first-child { border-right: 1px solid var(--border); }
+
+  .range-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-family: var(--mono);
+    margin-bottom: 10px;
+  }
+
+  .spinners { display: flex; flex-direction: column; gap: 10px; }
+  .spinner-row { display: flex; align-items: center; gap: 8px; }
+
+  .spinner-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    width: 22px;
+    flex-shrink: 0;
+  }
+
+  .spinner-ctrl {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    flex: 1;
+  }
+
+  .spin-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 14px;
+    width: 28px; height: 28px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .spin-btn:hover { color: var(--accent); background: rgba(232,255,71,0.06); }
+
+  .spin-val {
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--text);
+    text-align: center;
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    width: 36px;
+    min-width: 0;
+    -moz-appearance: textfield;
+  }
+  .spin-val::-webkit-outer-spin-button,
+  .spin-val::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  .callout {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+  }
+  .callout .highlight { color: var(--accent); }
+
+  .btn-row { display: flex; border-top: 1px solid var(--border); }
+
+  .btn {
+    flex: 1;
+    padding: 16px;
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-generate { background: var(--accent); color: #0d0e0f; }
+  .btn-generate:hover { background: #d4e83d; }
+  .btn-generate:active { transform: scale(0.98); }
+
+  .btn-stop {
+    background: var(--bg);
+    color: var(--muted);
+    border-left: 1px solid var(--border);
+    flex: 0 0 100px;
+  }
+  .btn-stop:hover { color: var(--accent2); border-color: var(--accent2); }
+
+  .ring {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border: 2px solid var(--accent2);
+    opacity: 0;
+  }
+  .ring.pulse { animation: ringpulse 0.6s ease-out forwards; }
+  @keyframes ringpulse {
+    0% { opacity: 0.8; }
+    100% { opacity: 0; transform: scale(1.04); }
+  }
+</style>
+</head>
+<body>
+
+<!-- BOOM overlay -->
+<div class="boom-overlay" id="boomOverlay">
+  <div class="boom-icon" id="boomIcon">💥</div>
+  <div class="boom-text">Time's Up!</div>
+  <div class="boom-sub" id="boomSub"></div>
+  <button class="boom-close" onclick="dismissBoom()">▶ Play Again</button>
+</div>
+
+<div class="wrap">
+  <header>
+    <span class="brand">⬡ Random Timer</span>
+    <span class="brand"><span class="status-dot" id="dot"></span><span id="statusTxt">IDLE</span></span>
+  </header>
+
+  <div class="display-box" id="displayBox">
+    <div class="display-label" id="displayLabel">ELAPSED / TOTAL</div>
+
+    <!-- Normal view -->
+    <div id="normalView">
+      <div class="time-display" id="timeDisplay">00:00</div>
+      <div id="totalLine" style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px;letter-spacing:.1em;">— : —</div>
+    </div>
+
+    <!-- Hidden mode view -->
+    <div class="hidden-view" id="hiddenView">
+      <div class="hidden-emoji" id="hiddenEmoji">🎵</div>
+      <div class="hidden-msg" id="hiddenMsg">Waiting to start…</div>
+      <div class="dot-loader" id="dotLoader" style="display:none">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="progress-track" id="progressTrack">
+      <div class="progress-fill" id="prog"></div>
+    </div>
+    <div class="ring" id="ring"></div>
+  </div>
+
+  <!-- Hidden mode toggle -->
+  <div class="toggle-row">
+    <div class="toggle-info">
+      <span class="toggle-title">🙈 Hidden Countdown</span>
+      <span class="toggle-desc">Hides the timer from players — great for hot potato &amp; musical chairs</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="hiddenToggle" onchange="onToggleHidden()">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="controls-box">
+    <div class="section-title">Range</div>
+    <div class="range-grid">
+      <div class="range-col">
+        <div class="range-label">Minimum</div>
+        <div class="spinners">
+          <div class="spinner-row">
+            <span class="spinner-label">min</span>
+            <div class="spinner-ctrl">
+              <button class="spin-btn" onclick="spin('minM',-1)">−</button>
+              <input class="spin-val" type="number" id="minM" value="0" min="0" max="99" onchange="validate()">
+              <button class="spin-btn" onclick="spin('minM',1)">+</button>
+            </div>
+          </div>
+          <div class="spinner-row">
+            <span class="spinner-label">sec</span>
+            <div class="spinner-ctrl">
+              <button class="spin-btn" onclick="spin('minS',-1)">−</button>
+              <input class="spin-val" type="number" id="minS" value="5" min="0" max="59" onchange="validate()">
+              <button class="spin-btn" onclick="spin('minS',1)">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="range-col">
+        <div class="range-label">Maximum</div>
+        <div class="spinners">
+          <div class="spinner-row">
+            <span class="spinner-label">min</span>
+            <div class="spinner-ctrl">
+              <button class="spin-btn" onclick="spin('maxM',-1)">−</button>
+              <input class="spin-val" type="number" id="maxM" value="0" min="0" max="99" onchange="validate()">
+              <button class="spin-btn" onclick="spin('maxM',1)">+</button>
+            </div>
+          </div>
+          <div class="spinner-row">
+            <span class="spinner-label">sec</span>
+            <div class="spinner-ctrl">
+              <button class="spin-btn" onclick="spin('maxS',-1)">−</button>
+              <input class="spin-val" type="number" id="maxS" value="30" min="0" max="59" onchange="validate()">
+              <button class="spin-btn" onclick="spin('maxS',1)">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout" id="callout">
+      <span>Set a range and press GENERATE</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-generate" onclick="generate()">⚡ Generate &amp; Start</button>
+      <button class="btn btn-stop" onclick="stopTimer(false)">Stop</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let interval = null;
+  let totalSec = 0;
+  let elapsed = 0;
+
+  const GAME_STATES = [
+    { emoji: '🥔', msg: 'Hot potato is live…' },
+    { emoji: '🎵', msg: 'Music is playing…' },
+    { emoji: '🎶', msg: 'Keep passing it…' },
+    { emoji: '🥁', msg: 'Could stop any time…' },
+    { emoji: '😬', msg: "Don't get caught…" },
+    { emoji: '🎲', msg: 'The clock is ticking…' },
+  ];
+
+  function isHidden() { return document.getElementById('hiddenToggle').checked; }
+  function v(id) { return parseInt(document.getElementById(id).value) || 0; }
+
+  function spin(id, dir) {
+    const el = document.getElementById(id);
+    const max = id.endsWith('S') ? 59 : 99;
+    el.value = Math.max(0, Math.min(max, (parseInt(el.value) || 0) + dir));
+    validate();
+  }
+
+  function validate() {
+    const minT = v('minM') * 60 + v('minS');
+    const maxT = v('maxM') * 60 + v('maxS');
+    const c = document.getElementById('callout');
+    if (minT === 0 && maxT === 0) { c.innerHTML = '<span style="color:var(--accent2)">Both values are zero</span>'; return false; }
+    if (maxT < minT) { c.innerHTML = '<span style="color:var(--accent2)">⚠ Max must be ≥ min</span>'; return false; }
+    c.innerHTML = `Range: <span class="highlight">${fmt(minT)}</span> → <span class="highlight">${fmt(maxT)}</span>`;
+    return true;
+  }
+
+  function fmt(s) {
+    return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  }
+
+  function onToggleHidden() {
+    const hidden = isHidden();
+    document.getElementById('normalView').style.display = hidden ? 'none' : 'block';
+    document.getElementById('hiddenView').style.display = hidden ? 'flex' : 'none';
+    document.getElementById('displayLabel').textContent = hidden ? 'GAME MODE — HIDDEN' : 'ELAPSED / TOTAL';
+    document.getElementById('progressTrack').classList.toggle('hidden-mode', hidden);
+    if (!interval) {
+      document.getElementById('hiddenEmoji').textContent = '🎵';
+      document.getElementById('hiddenMsg').textContent = 'Waiting to start…';
+      document.getElementById('dotLoader').style.display = 'none';
+    }
+    validate();
+  }
+
+  function generate() {
+    if (!validate()) return;
+    stopTimer(true);
+
+    const minT = v('minM') * 60 + v('minS');
+    const maxT = v('maxM') * 60 + v('maxS');
+    totalSec = Math.floor(Math.random() * (maxT - minT + 1)) + minT;
+    elapsed = 0;
+
+    if (isHidden()) {
+      const state = GAME_STATES[Math.floor(Math.random() * GAME_STATES.length)];
+      document.getElementById('hiddenEmoji').textContent = state.emoji;
+      document.getElementById('hiddenMsg').textContent = state.msg;
+      document.getElementById('dotLoader').style.display = 'flex';
+      document.getElementById('callout').innerHTML = '<span style="color:var(--muted)">Timer is secret 🤫</span>';
+    } else {
+      document.getElementById('totalLine').textContent = `/ ${fmt(totalSec)}`;
+      document.getElementById('callout').innerHTML = `Random pick: <span class="highlight">${fmt(totalSec)}</span>`;
+    }
+
+    updateDisplay();
+    setStatus('running');
+
+    interval = setInterval(() => {
+      elapsed++;
+      updateDisplay();
+      if (elapsed >= totalSec) {
+        clearInterval(interval); interval = null;
+        if (isHidden()) {
+          showBoom();
+        } else {
+          setStatus('done');
+          document.getElementById('timeDisplay').classList.add('done-state');
+          triggerRing();
+        }
+      }
+    }, 1000);
+  }
+
+  function updateDisplay() {
+    if (!isHidden()) {
+      const el = document.getElementById('timeDisplay');
+      const prog = document.getElementById('prog');
+      el.textContent = fmt(elapsed);
+      const pct = totalSec > 0 ? (elapsed / totalSec) * 100 : 0;
+      prog.style.width = pct + '%';
+      const warn = pct >= 75 && interval !== null;
+      el.classList.toggle('warning', warn);
+      prog.classList.toggle('warning', warn);
+    }
+  }
+
+  function showBoom() {
+    setStatus('done');
+    document.getElementById('boomSub').textContent = `Timer was ${fmt(totalSec)}`;
+    document.getElementById('boomOverlay').classList.add('show');
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+  }
+
+  function dismissBoom() {
+    document.getElementById('boomOverlay').classList.remove('show');
+    stopTimer(false);
+  }
+
+  function stopTimer(silent) {
+    if (interval) { clearInterval(interval); interval = null; }
+    elapsed = 0; totalSec = 0;
+    document.getElementById('timeDisplay').textContent = '00:00';
+    document.getElementById('timeDisplay').className = 'time-display';
+    document.getElementById('totalLine').textContent = '— : —';
+    document.getElementById('prog').style.width = '0%';
+    document.getElementById('prog').classList.remove('warning');
+    document.getElementById('dotLoader').style.display = 'none';
+    document.getElementById('hiddenEmoji').textContent = '🎵';
+    document.getElementById('hiddenMsg').textContent = 'Waiting to start…';
+    setStatus('idle');
+    if (!silent) validate();
+  }
+
+  function setStatus(state) {
+    document.getElementById('dot').className = 'status-dot ' + (state === 'idle' ? '' : state);
+    document.getElementById('statusTxt').textContent = state.toUpperCase();
+  }
+
+  function triggerRing() {
+    const ring = document.getElementById('ring');
+    ring.classList.remove('pulse');
+    void ring.offsetWidth;
+    ring.classList.add('pulse');
+  }
+
+  validate();
+</script>
+</body>
+  </html>
+  
